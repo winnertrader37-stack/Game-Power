@@ -4,7 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Naol Lambo</title>
-<link rel="stylesheet" href="style.css">
+<style>
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#222;font-family:Arial,sans-serif;color:#fff}
+canvas{display:block}
+#hud{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#000a;border:2px solid #fc0;border-radius:12px;padding:6px 16px;text-align:center}
+#spd{font-size:34px;font-weight:bold;color:#0ff}
+#hint{position:fixed;top:8px;left:8px;background:#0008;padding:6px 10px;border-radius:8px;font-size:13px;max-width:60%}
+.b{position:fixed;background:#000a;border:2px solid #fff8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px}
+#gas{right:14px;bottom:14px;width:78px;height:78px;background:#1a8a3acc}
+#brk{right:104px;bottom:14px;width:64px;height:64px;background:#b22222cc}
+#lt{left:14px;bottom:14px;width:70px;height:70px}
+#rt{left:94px;bottom:14px;width:70px;height:70px}
+.s{position:fixed;top:8px;width:54px;height:54px;font-size:13px}
+#gN{right:8px}#gD{right:68px}#gR{right:128px}
+#dr{right:8px;top:70px}#en{right:68px;top:70px}
+.on{background:#fc0c;color:#000}
+
+#err{position:fixed;left:10px;right:10px;top:50%;transform:translateY(-50%);background:#900;color:#fff;padding:14px;border-radius:10px;font-size:15px;display:none;z-index:99}
+</style>
 </head>
 <body>
 <div id="hint">Naol Lambo — E: gali/bahi · F: balbala · 1/2/3: N/D/R · Xiyyeeffannoo: ◀ ▶ ▲ ▼</div>
@@ -14,13 +32,249 @@
 <div class="b s" id="gN">N</div><div class="b s" id="gD">D</div><div class="b s" id="gR">R</div>
 <div class="b s" id="dr">DOOR</div><div class="b s" id="en">GALI</div>
 
+<div id="err"></div>
+<script>
+window.onerror=function(m,s,l){var e=document.getElementById('err');e.style.display='block';e.textContent='Dogoggora: '+m+' (line '+l+')'};
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="js/1-scene.js"></script>
-<script src="js/2-world.js"></script>
-<script src="js/3-car.js"></script>
-<script src="js/4-player.js"></script>
-<script src="js/5-audio.js"></script>
-<script src="js/6-controls.js"></script>
-<script src="js/7-main.js"></script>
+<script>window.THREE||document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"><\/script>')</script>
+<script>
+if(!window.THREE){var e=document.getElementById('err');e.style.display='block';e.textContent='Three.js hin fe\'amne. Interneetii kee ilaalii fuula haaromsi (refresh).'}
+else{
+// ================= KUTAA 1: Scene, ifa, kaameraa =================
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x9ccbff);
+scene.fog=new THREE.Fog(0x9ccbff,60,420);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,1200);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+scene.add(new THREE.HemisphereLight(0xffffff,0x6b5a3a,0.8));
+const sun=new THREE.DirectionalLight(0xffe2b0,0.9);sun.position.set(-80,120,60);scene.add(sun);
+
+function tex(w,h,fn){const c=document.createElement('canvas');c.width=w;c.height=h;fn(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t}
+const M=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+// ================= KUTAA 2: Daandii asphalt, dachee, mana, mukkeen =================
+const roadTex=tex(256,256,(g,w,h)=>{
+  g.fillStyle='#2b2b2e';g.fillRect(0,0,w,h);
+  for(let i=0;i<2500;i++){g.fillStyle='rgba('+(i%2?255:0)+','+(i%2?255:0)+','+(i%2?255:0)+',0.05)';g.fillRect(Math.random()*w,Math.random()*h,2,2)}
+  g.fillStyle='#e8c200';g.fillRect(w/2-3,10,6,h/2-20);
+  g.fillStyle='#fff';g.fillRect(6,0,5,h);g.fillRect(w-11,0,5,h);
+});
+roadTex.repeat.set(1,140);
+const road=new THREE.Mesh(new THREE.PlaneGeometry(16,1400),new THREE.MeshLambertMaterial({map:roadTex}));
+road.rotation.x=-Math.PI/2;scene.add(road);
+const groundTex=tex(128,128,(g,w,h)=>{g.fillStyle='#6f8f3d';g.fillRect(0,0,w,h);for(let i=0;i<900;i++){g.fillStyle=['#5d7d31','#7e9a4a','#8a7a4a'][i%3];g.fillRect(Math.random()*w,Math.random()*h,3,3)}});
+groundTex.repeat.set(300,300);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(3000,3000),new THREE.MeshLambertMaterial({map:groundTex}));
+ground.rotation.x=-Math.PI/2;ground.position.y=-0.05;scene.add(ground);
+[-1,1].forEach(s=>{const w=new THREE.Mesh(new THREE.BoxGeometry(3,0.2,1400),M(0x9a9a9a));w.position.set(s*9.5,0.05,0);scene.add(w)});
+
+const colliders=[];
+const winTex=tex(64,128,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h);g.fillStyle='#445';for(let y=8;y<h;y+=24)for(let x=6;x<w;x+=20)g.fillRect(x,y,12,14)});
+function building(x,z,w,d,h,col,signText,signCol){
+  const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:col,map:winTex}));
+  b.position.set(x,h/2,z);scene.add(b);colliders.push({x,z,hw:w/2,hd:d/2});
+  if(signText){
+    const st=tex(512,128,(g,W,H)=>{g.fillStyle=signCol;g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font='bold 64px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(signText,W/2,H/2)});
+    const s=new THREE.Mesh(new THREE.PlaneGeometry(w*0.9,w*0.9/4),new THREE.MeshBasicMaterial({map:st}));
+    const side=x<0?1:-1;
+    s.position.set(x+side*(w/2+0.1),Math.min(h-2,7),z);s.rotation.y=side*Math.PI/2;scene.add(s);
+  }
+}
+// Mana addaa (maqaa Naol)
+building(-22,40,14,18,16,0xd9c9a8,'NAOL HOTEL','#a31621');
+building(22,70,14,18,9,0xb0b0b0,'NAOL GARAGE','#1b4f9c');
+building(-22,100,14,22,12,0xe0d8c0,'NAOL SHOPPING','#0a7d3b');
+building(22,130,16,20,8,0xe8b04a,'MANA BARUMSAA','#7a3b9c');
+// Manoota Finfinnee (Addis Ababa) fakkaatan
+for(let i=0;i<46;i++){
+  const z=-250+i*13+rnd(-3,3);
+  const left=i%2===0;
+  if(Math.abs(z-40)<16||Math.abs(z-70)<16||Math.abs(z-100)<18||Math.abs(z-130)<18)continue;
+  const h=rnd(6,38);
+  building((left?-1:1)*rnd(20,26),z,rnd(9,15),rnd(9,14),h,new THREE.Color().setHSL(rnd(0.05,0.12),0.2,rnd(0.55,0.85)));
+}
+// Mukkeen (gara baadiyaa/biyya Itoophiyaa)
+function tree(x,z){
+  const g=new THREE.Group();
+  const t=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.35,3.5,6),M(0x5a3b1e));t.position.y=1.75;g.add(t);
+  const c=new THREE.Mesh(new THREE.SphereGeometry(rnd(1.8,2.8),8,6),M(0x2f7a2f));c.scale.y=0.7;c.position.y=4.2;g.add(c);
+  g.position.set(x,0,z);scene.add(g);
+}
+for(let i=0;i<160;i++){const s=Math.random()<0.5?-1:1;tree(s*rnd(12,70),rnd(-600,600))}
+// Gaarreen fagoo
+for(let i=0;i<14;i++){
+  const m=new THREE.Mesh(new THREE.ConeGeometry(rnd(60,120),rnd(60,130),6),M(0x5f6f5a));
+  m.position.set(rnd(-500,500),30,i%2?-650:650);scene.add(m);
+}
+// Namoota ally Oromiyaa qabatan (cuquliisaa: diimaa, adii, magariisa)
+const people=[];
+function person(x,z){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.9,0.3),M(Math.random()*0xffffff));body.position.y=1.1;g.add(body);
+  const legs=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.7,0.25),M(0x223344));legs.position.y=0.35;g.add(legs);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,8,8),M(0x6b4226));head.position.y=1.8;g.add(head);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,2.4,4),M(0x333333));pole.position.set(0.35,1.5,0);g.add(pole);
+  ['#d62828','#ffffff','#2a9d3f'].forEach((c,i)=>{const f=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.2),new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));f.position.set(0.8,2.55-i*0.2,0);g.add(f)});
+  g.position.set(x,0.15,z);g.userData.dir=Math.random()<0.5?1:-1;scene.add(g);people.push(g);
+}
+for(let i=0;i<24;i++)person((Math.random()<0.5?-1:1)*9.5,rnd(-100,250));
+
+// ================= KUTAA 3: Konkolaata "Naol Lambo" =================
+const car=new THREE.Group();scene.add(car);
+const bodyMat=M(0xffc400);
+const lower=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.55,4.7),bodyMat);lower.position.y=0.6;car.add(lower);
+const hood=new THREE.Mesh(new THREE.BoxGeometry(1.9,0.18,1.6),bodyMat);hood.position.set(0,0.95,1.5);car.add(hood);
+const cab=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.55,2.1),new THREE.MeshLambertMaterial({color:0x111a22}));cab.position.set(0,1.2,-0.3);car.add(cab);
+const roof=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.08,1.6),bodyMat);roof.position.set(0,1.5,-0.3);car.add(roof);
+const spoiler=new THREE.Mesh(new THREE.BoxGeometry(2,0.07,0.5),M(0x111111));spoiler.position.set(0,1.25,-2.3);car.add(spoiler);
+// Logo Naol Lambo (gubbaa hood irra)
+const logoTex=tex(128,128,(g,w,h)=>{g.fillStyle='#111';g.fillRect(0,0,w,h);g.strokeStyle='#ffc400';g.lineWidth=6;g.beginPath();g.arc(64,64,54,0,7);g.stroke();g.fillStyle='#ffc400';g.font='bold 54px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText('NL',64,66)});
+const logo=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.7),new THREE.MeshBasicMaterial({map:logoTex}));
+logo.rotation.x=-Math.PI/2;logo.position.set(0,1.05,1.6);car.add(logo);
+const nameTex=tex(256,64,(g,w,h)=>{g.fillStyle='#111';g.fillRect(0,0,w,h);g.fillStyle='#ffc400';g.font='bold 38px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText('NAOL LAMBO',w/2,h/2)});
+const plate=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.22),new THREE.MeshBasicMaterial({map:nameTex}));plate.position.set(0,0.5,2.36);car.add(plate);
+[-0.7,0.7].forEach(x=>{const l=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.1,0.05),new THREE.MeshBasicMaterial({color:0xffffee}));l.position.set(x,0.8,2.36);car.add(l);
+  const r=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.1,0.05),new THREE.MeshBasicMaterial({color:0xff1111}));r.position.set(x,0.8,-2.36);car.add(r)});
+// Ijaarsa ruuxaa (wheels)
+const wheels=[];
+[[-1.02,1.5],[1.02,1.5],[-1.02,-1.5],[1.02,-1.5]].forEach(p=>{
+  const g=new THREE.Group();
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,0.3,16),M(0x151515));m.rotation.z=Math.PI/2;g.add(m);
+  const rim=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.32,8),M(0xcccccc));rim.rotation.z=Math.PI/2;g.add(rim);
+  g.position.set(p[0],0.42,p[1]);car.add(g);wheels.push(g);
+});
+// Balbala 4 (hundi isaa banamee cufama)
+const doors=[];
+[[-1,0.55],[-1,-0.7],[1,0.55],[1,-0.7]].forEach(d=>{
+  const pivot=new THREE.Group();pivot.position.set(d[0]*1.01,0.9,d[1]);
+  const m=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.8,1.2),bodyMat);m.position.z=-0.6;pivot.add(m);
+  const gl=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.35,0.9),new THREE.MeshLambertMaterial({color:0x223344}));gl.position.set(0,0.3,-0.6);pivot.add(gl);
+  pivot.userData.side=d[0];pivot.userData.open=0;car.add(pivot);doors.push(pivot);
+});
+let doorsOpen=false;
+const C={x:4,z:0,rot:0,speed:0};
+car.position.set(C.x,0,C.z);
+
+// ================= KUTAA 4: Namicha taphataa (uffata adii + jeans) =================
+const player=new THREE.Group();scene.add(player);
+const skin=M(0x6b4226);
+const torso=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.7,0.3),M(0xffffff));torso.position.y=1.3;player.add(torso);
+const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,12,12),skin);head.position.y=1.85;player.add(head);
+const hair=new THREE.Mesh(new THREE.SphereGeometry(0.21,12,8,0,Math.PI*2,0,Math.PI/2),M(0x111111));hair.position.y=1.9;player.add(hair);
+const chain=new THREE.Mesh(new THREE.TorusGeometry(0.12,0.015,6,12),M(0xffd700));chain.position.set(0,1.55,0.16);chain.rotation.x=1.2;player.add(chain);
+const mk=(x,col)=>{const g=new THREE.Group();const m=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.8,0.22),M(col));m.position.y=-0.4;g.add(m);g.position.set(x,0.85,0);player.add(g);return g};
+const legL=mk(-0.14,0x2f5d9e),legR=mk(0.14,0x2f5d9e);
+const armL=mk(-0.38,0x6b4226),armR=mk(0.38,0x6b4226);armL.position.y=1.6;armR.position.y=1.6;
+const P={x:-1,z:-6,rot:0,walk:0};
+let inCar=false;
+
+// ================= KUTAA 5: Sagalee motoora (Ferrari/Lambo fakkaatu) =================
+let actx,o1,o2,og;
+function startAudio(){
+  if(actx)return;
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  o1=actx.createOscillator();o1.type='sawtooth';
+  o2=actx.createOscillator();o2.type='square';
+  og=actx.createGain();og.gain.value=0;
+  const f=actx.createBiquadFilter();f.type='lowpass';f.frequency.value=1800;
+  o1.connect(f);o2.connect(f);f.connect(og);og.connect(actx.destination);
+  o1.start();o2.start();
+}
+function engineSound(speed,gas){
+  if(!actx)return;
+  const rpm=Math.min(1,(Math.abs(speed)%20)/20+Math.abs(speed)/120)+(gas?0.15:0);
+  const f=70+rpm*380+Math.abs(speed)*1.5;
+  o1.frequency.setTargetAtTime(f,actx.currentTime,0.05);
+  o2.frequency.setTargetAtTime(f*2.01,actx.currentTime,0.05);
+  og.gain.setTargetAtTime(inCar?(0.05+(gas?0.06:0)):0,actx.currentTime,0.1);
+}
+
+// ================= KUTAA 6: Of-too'annoo (keyboard + bilbila) =================
+const K={};let gear='N';
+function setGear(g){if(Math.abs(C.speed)<2||!inCar){gear=g;document.getElementById('gear').textContent=g;['N','D','R'].forEach(x=>document.getElementById('g'+x).classList.toggle('on',x===g))}}
+function toggleDoors(){doorsOpen=!doorsOpen}
+function enterExit(){
+  startAudio();
+  const dx=P.x-C.x,dz=P.z-C.z;
+  if(!inCar){
+    if(Math.hypot(dx,dz)<5){inCar=true;doorsOpen=true;setTimeout(()=>{doorsOpen=false},900);player.visible=false}
+  }else if(Math.abs(C.speed)<3){
+    inCar=false;doorsOpen=true;setTimeout(()=>{doorsOpen=false},1200);
+    P.x=C.x-Math.cos(C.rot)*2.4;P.z=C.z+Math.sin(C.rot)*2.4;P.rot=C.rot;player.visible=true;C.speed=0;
+  }
+}
+addEventListener('keydown',e=>{K[e.code]=true;startAudio();
+  if(e.code==='KeyE')enterExit();if(e.code==='KeyF')toggleDoors();
+  if(e.code==='Digit1')setGear('N');if(e.code==='Digit2')setGear('D');if(e.code==='Digit3')setGear('R')});
+addEventListener('keyup',e=>K[e.code]=false);
+function hold(id,code){const el=document.getElementById(id);
+  const on=e=>{e.preventDefault();K[code]=true;startAudio()},off=e=>{e.preventDefault();K[code]=false};
+  el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointerleave',off);el.addEventListener('pointercancel',off)}
+hold('gas','ArrowUp');hold('brk','ArrowDown');hold('lt','ArrowLeft');hold('rt','ArrowRight');
+const tap=(id,fn)=>document.getElementById(id).addEventListener('pointerdown',e=>{e.preventDefault();startAudio();fn()});
+tap('gN',()=>setGear('N'));tap('gD',()=>setGear('D'));tap('gR',()=>setGear('R'));
+tap('dr',toggleDoors);tap('en',enterExit);
+setGear('N');
+
+// ================= KUTAA 7: Loop ijoo taphaa =================
+const clock=new THREE.Clock();
+function loop(){
+  requestAnimationFrame(loop);
+  const dt=Math.min(clock.getDelta(),0.05);
+  const up=K.ArrowUp||K.KeyW,dn=K.ArrowDown||K.KeyS,lf=K.ArrowLeft||K.KeyA,rt=K.ArrowRight||K.KeyD;
+  const steer=(lf?1:0)-(rt?1:0);
+
+  if(inCar){
+    // fiigicha
+    const max=gear==='R'?12:70;
+    if(up){ if(gear==='D')C.speed+=16*dt; else if(gear==='R')C.speed-=8*dt }
+    if(dn){ C.speed-=Math.sign(C.speed)*Math.min(Math.abs(C.speed),28*dt) }
+    if(!up&&!dn)C.speed*=1-0.4*dt;
+    if(gear==='N'&&!dn)C.speed*=1-0.3*dt;
+    C.speed=Math.max(-12,Math.min(max,C.speed));
+    C.rot+=steer*dt*Math.min(1.6,Math.abs(C.speed)/6)*Math.sign(C.speed||1)*(Math.abs(C.speed)>0.3?1:0);
+    const ox=C.x,oz=C.z;
+    C.x+=Math.sin(C.rot)*C.speed*dt;C.z+=Math.cos(C.rot)*C.speed*dt;
+    for(const b of colliders){if(Math.abs(C.x-b.x)<b.hw+1.4&&Math.abs(C.z-b.z)<b.hd+2.4){C.x=ox;C.z=oz;C.speed*=-0.3;break}}
+    wheels.forEach(w=>w.rotation.x+=C.speed*dt/0.42);
+    document.getElementById('spd').textContent=Math.round(Math.abs(C.speed)*3.6);
+    engineSound(C.speed,up);
+  }else{
+    // deemuu
+    P.rot+=steer*dt*2.2;
+    const v=(up?1:0)-(dn?1:0);
+    P.x+=Math.sin(P.rot)*v*4.5*dt;P.z+=Math.cos(P.rot)*v*4.5*dt;
+    P.walk+=Math.abs(v)*dt*8;
+    legL.rotation.x=Math.sin(P.walk)*0.6*Math.abs(v);legR.rotation.x=-legL.rotation.x;
+    armL.rotation.x=-legL.rotation.x;armR.rotation.x=legL.rotation.x;
+    player.position.set(P.x,0.1,P.z);player.rotation.y=P.rot;
+    C.speed*=1-2*dt;engineSound(0,false);
+    document.getElementById('spd').textContent='0';
+  }
+  car.position.set(C.x,0,C.z);car.rotation.y=C.rot;
+  doors.forEach(d=>{const t=doorsOpen?1:0;d.userData.open+=(t-d.userData.open)*Math.min(1,dt*6);d.rotation.y=-d.userData.side*d.userData.open})
+  people.forEach(p=>{p.position.z+=p.userData.dir*dt*1.2;p.rotation.y=p.userData.dir>0?0:Math.PI;if(p.position.z>260||p.position.z<-110)p.userData.dir*=-1});
+
+  // kaameraa
+  const tx=inCar?C.x:P.x,tz=inCar?C.z:P.z,tr=inCar?C.rot:P.rot,dist=inCar?9:4.5,hh=inCar?3.6:2.4;
+  const cx=tx-Math.sin(tr)*dist,cz=tz-Math.cos(tr)*dist;
+  camera.position.x+=(cx-camera.position.x)*Math.min(1,dt*5);
+  camera.position.z+=(cz-camera.position.z)*Math.min(1,dt*5);
+  camera.position.y+=(hh-camera.position.y)*Math.min(1,dt*3);
+  camera.lookAt(tx,1.2,tz);
+  renderer.render(scene,camera);
+}
+camera.position.set(P.x,2.4,P.z-4.5);
+loop();
+
+
+}
+</script>
 </body>
 </html>
